@@ -552,6 +552,8 @@
       if (savedData) {
         timersData = JSON.parse(savedData);
         timersData.forEach((t, index) => {
+          if (t.finalRank === undefined) t.finalRank = null;
+          if (t.expiredAt === undefined) t.expiredAt = null;
           if (t.orderIndex === undefined) t.orderIndex = index;
         });
       } else {
@@ -981,7 +983,6 @@
       renderApp(true);
     }
 
-    // ฟังก์ชันอัปเดตเฉพาะตัวเลขเวลาและสถานะโดยไม่สร้าง DOM ใหม่ (ลดการกระพริบและโหลดไวมาก)
     function tickClock() {
       if (isEditing || isDragging) return;
 
@@ -1010,7 +1011,6 @@
       });
 
       if (stateChanged) {
-        // คำนวณ Rank ใหม่เฉพาะตอนเวลาหมด
         let roundGroups = {};
         timersData.filter(t => t.expiredAt !== null).forEach(t => {
           if (!roundGroups[t.roundId]) roundGroups[t.roundId] = [];
@@ -1048,11 +1048,10 @@
           }
         });
         saveData();
-        renderApp(true); // สร้างใหม่เฉพาะเมื่อโครงสร้าง Rank เปลี่ยน
+        renderApp(true);
         return;
       }
 
-      // วนอัปเดตเฉพาะตัวเลขหน้าจอแบบเรียลไทม์
       timersData.forEach(timer => {
         let cardEl = document.querySelector(`.timer-card[data-id='${timer.id}']`);
         if (!cardEl) return;
@@ -1108,7 +1107,24 @@
         if (hiddenZones.includes(zoneName)) return;
 
         let zoneItems = timersData.filter(t => t.zone === zoneName);
-        zoneItems.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+        
+        // จัดเรียงการแสดงผลในการ์ด: เอาอันที่กำลังนับถอยหลังเหลือน้อยไปมากไว้บนสุด, ถ้าหมดเวลาแล้วเรียงตามอันดับ (finalRank)
+        zoneItems.sort((a, b) => {
+          let aActive = a.endTime !== null && Date.now() < a.endTime;
+          let bActive = b.endTime !== null && Date.now() < b.endTime;
+
+          if (aActive && bActive) {
+            return a.endTime - b.endTime; // น้อยไปมาก
+          }
+          if (aActive && !bActive) return -1;
+          if (!aActive && bActive) return 1;
+
+          // ถ้าหมดเวลาทั้งคู่ เรียงตาม Rank
+          if (a.finalRank !== null && b.finalRank !== null) {
+            return a.finalRank - b.finalRank;
+          }
+          return (a.orderIndex || 0) - (b.orderIndex || 0);
+        });
 
         let zoneDiv = document.createElement("div");
         zoneDiv.className = "zone-section";
@@ -1138,7 +1154,7 @@
         } else {
           zoneItems.forEach(timer => {
             let isActive = timer.endTime !== null && Date.now() < timer.endTime;
-            let isExpired = timer.expiredAt !== null && timer.finalRank !== null;
+            let isExpired = timer.expiredAt !== null && timer.finalRank !== null && timer.finalRank !== undefined;
             let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - Date.now()) / 1000)) : 0;
 
             let m = Math.floor(totalSeconds / 60);
