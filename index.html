@@ -4,10 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>💸</title>
-  
-  <!-- Firebase App & Realtime Database SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
   <style>
     :root {
@@ -495,20 +491,6 @@
   </div>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDh8rjaeT4t5ExeR9zCjfj0ITLfe9ZQlxc",
-      authDomain: "bolter-23869.firebaseapp.com",
-      databaseURL: "https://bolter-23869-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "bolter-23869",
-      storageBucket: "bolter-23869.firebasestorage.app",
-      messagingSenderId: "402441285894",
-      appId: "1:402441285894:web:96923e057153945e42ee87",
-      measurementId: "G-DJJWVLHBT5"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
     const defaultTimersData = [
       { id: 1, label: "ปั้มเก่า", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 0 },
       { id: 2, label: "ใต้ตึก", endTime: null, expiredAt: null, finalRank: null, roundId: 1, zone: "Zone A", orderIndex: 1 },
@@ -528,7 +510,6 @@
     ];
 
     let defaultZones = ["Zone A", "Zone B", "Zone C"];
-
     let timersData = [];
     let zonesData = [];
     let hiddenZones = [];
@@ -563,30 +544,36 @@
       if (savedHidden) hiddenZones = JSON.parse(savedHidden);
     }
 
-    function initFirebaseSync() {
-      db.ref('app_state').on('value', (snapshot) => {
-        let data = snapshot.val();
-        if (data) {
-          timersData = data.timers || JSON.parse(JSON.stringify(defaultTimersData));
-          zonesData = data.zones || JSON.parse(JSON.stringify(defaultZones));
-          currentSetRound = data.round || 1;
-        } else {
-          timersData = JSON.parse(JSON.stringify(defaultTimersData));
-          zonesData = JSON.parse(JSON.stringify(defaultZones));
-          currentSetRound = 1;
-          saveData();
-        }
-        document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
-        renderApp();
-      });
+    function loadData() {
+      let savedData = localStorage.getItem('timer_app_data');
+      let savedRound = localStorage.getItem('timer_app_round');
+      let savedZones = localStorage.getItem('timer_app_zones');
+
+      if (savedData) {
+        timersData = JSON.parse(savedData);
+        timersData.forEach((t, index) => {
+          if (t.orderIndex === undefined) t.orderIndex = index;
+        });
+      } else {
+        timersData = JSON.parse(JSON.stringify(defaultTimersData));
+      }
+
+      if (savedZones) {
+        zonesData = JSON.parse(savedZones);
+      } else {
+        zonesData = JSON.parse(JSON.stringify(defaultZones));
+      }
+
+      if (savedRound) {
+        currentSetRound = parseInt(savedRound, 10) || 1;
+      }
+      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
     }
 
     function saveData() {
-      db.ref('app_state').set({
-        timers: timersData,
-        zones: zonesData,
-        round: currentSetRound
-      });
+      localStorage.setItem('timer_app_data', JSON.stringify(timersData));
+      localStorage.setItem('timer_app_round', currentSetRound);
+      localStorage.setItem('timer_app_zones', JSON.stringify(zonesData));
     }
 
     function resetTimersData() {
@@ -600,6 +587,7 @@
           t.roundId = 1;
         });
         saveData();
+        renderApp(true);
       }
     }
 
@@ -618,7 +606,7 @@
 
     function closeSettingsModal() {
       document.getElementById("settingsModal").style.display = "none";
-      renderApp();
+      renderApp(true);
     }
 
     function toggleZoneVisibility(zoneName, isVisible) {
@@ -639,16 +627,19 @@
 
     function startNewSet() {
       currentSetRound++;
+      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
       saveData();
     }
 
     function startPrevSet() {
       if (currentSetRound > 1) {
         currentSetRound--;
-        saveData();
       } else {
         alert("นี่คือรอบแรกสุดแล้ว");
       }
+      document.getElementById("setIndicatorText").innerText = "📦 รอบที่ " + currentSetRound;
+      saveData();
+      renderApp(true);
     }
 
     function checkEnter(e) {
@@ -705,12 +696,14 @@
       labelInput.focus();
 
       saveData();
+      renderApp(true);
     }
 
     function deleteTimer(id) {
       delete activeDrawers[id];
       timersData = timersData.filter(t => t.id !== id);
       saveData();
+      renderApp(true);
     }
 
     function addZone() {
@@ -726,6 +719,7 @@
 
       zonesData.push(zoneName);
       saveData();
+      renderApp(true);
     }
 
     function deleteZone(zoneName) {
@@ -739,6 +733,7 @@
         hiddenZones = hiddenZones.filter(z => z !== zoneName);
         localStorage.setItem("timer_hidden_zones", JSON.stringify(hiddenZones));
         saveData();
+        renderApp(true);
       }
     }
 
@@ -771,7 +766,7 @@
           }
         }
         isEditing = false;
-        renderApp();
+        renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
 
@@ -820,6 +815,7 @@
       }
 
       saveData();
+      renderApp(true);
     }
 
     function makeEditableLabel(id, element) {
@@ -836,6 +832,7 @@
         timer.label = input.value.trim() || timer.label;
         isEditing = false;
         saveData();
+        renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
 
@@ -876,6 +873,7 @@
         }
         isEditing = false;
         saveData();
+        renderApp(true);
       };
       input.onkeydown = function(e) { if (e.key === 'Enter') input.blur(); };
 
@@ -922,6 +920,7 @@
       isDragging = false;
       draggedCardId = null;
       saveData();
+      renderApp(true);
     }
 
     let touchCard = null;
@@ -979,23 +978,12 @@
       isDragging = false;
       draggedCardId = null;
       saveData();
+      renderApp(true);
     }
 
-    function renderApp() {
+    // ฟังก์ชันอัปเดตเฉพาะตัวเลขเวลาและสถานะโดยไม่สร้าง DOM ใหม่ (ลดการกระพริบและโหลดไวมาก)
+    function tickClock() {
       if (isEditing || isDragging) return;
-
-      let zoneSelect = document.getElementById("zoneSelect");
-      let currentSelectedZone = zoneSelect.value;
-      zoneSelect.innerHTML = "";
-      zonesData.forEach(z => {
-        let opt = document.createElement("option");
-        opt.value = z;
-        opt.innerText = z;
-        zoneSelect.appendChild(opt);
-      });
-      if (zonesData.includes(currentSelectedZone)) {
-        zoneSelect.value = currentSelectedZone;
-      }
 
       let stateChanged = false;
       timersData.forEach(timer => {
@@ -1021,45 +1009,97 @@
         }
       });
 
-      let roundGroups = {};
-      timersData.filter(t => t.expiredAt !== null).forEach(t => {
-        if (!roundGroups[t.roundId]) roundGroups[t.roundId] = [];
-        roundGroups[t.roundId].push(t);
-      });
-
-      Object.keys(roundGroups).forEach(rId => {
-        let group = roundGroups[rId];
-        let unrankedGroup = group.filter(t => t.finalRank === null);
-        unrankedGroup.sort((a, b) => a.expiredAt - b.expiredAt);
-
-        let maxExistingRank = 0;
-        let lastExpiredAt = 0;
-        group.forEach(t => {
-          if (t.finalRank !== null) {
-            if (t.finalRank > maxExistingRank) maxExistingRank = t.finalRank;
-            if (t.expiredAt > lastExpiredAt) lastExpiredAt = t.expiredAt;
-          }
+      if (stateChanged) {
+        // คำนวณ Rank ใหม่เฉพาะตอนเวลาหมด
+        let roundGroups = {};
+        timersData.filter(t => t.expiredAt !== null).forEach(t => {
+          if (!roundGroups[t.roundId]) roundGroups[t.roundId] = [];
+          roundGroups[t.roundId].push(t);
         });
 
-        let currentRank = maxExistingRank > 0 ? maxExistingRank + 1 : 1;
-        
-        for (let i = 0; i < unrankedGroup.length; i++) {
-          if (maxExistingRank === 0 && i === 0) {
-            currentRank = 1;
-          } else {
-            let prevTime = i === 0 ? lastExpiredAt : unrankedGroup[i-1].expiredAt;
-            let diffSeconds = Math.abs(unrankedGroup[i].expiredAt - prevTime) / 1000;
+        Object.keys(roundGroups).forEach(rId => {
+          let group = roundGroups[rId];
+          let unrankedGroup = group.filter(t => t.finalRank === null);
+          unrankedGroup.sort((a, b) => a.expiredAt - b.expiredAt);
 
-            if (diffSeconds < 30) {
-              currentRank = i === 0 ? maxExistingRank : unrankedGroup[i-1].finalRank;
-            } else {
-              currentRank = (i === 0 ? maxExistingRank : unrankedGroup[i-1].finalRank) + 1;
+          let maxExistingRank = 0;
+          let lastExpiredAt = 0;
+          group.forEach(t => {
+            if (t.finalRank !== null) {
+              if (t.finalRank > maxExistingRank) maxExistingRank = t.finalRank;
+              if (t.expiredAt > lastExpiredAt) lastExpiredAt = t.expiredAt;
             }
+          });
+
+          let currentRank = maxExistingRank > 0 ? maxExistingRank + 1 : 1;
+          for (let i = 0; i < unrankedGroup.length; i++) {
+            if (maxExistingRank === 0 && i === 0) {
+              currentRank = 1;
+            } else {
+              let prevTime = i === 0 ? lastExpiredAt : unrankedGroup[i-1].expiredAt;
+              let diffSeconds = Math.abs(unrankedGroup[i].expiredAt - prevTime) / 1000;
+              if (diffSeconds < 30) {
+                currentRank = i === 0 ? maxExistingRank : unrankedGroup[i-1].finalRank;
+              } else {
+                currentRank = (i === 0 ? maxExistingRank : unrankedGroup[i-1].finalRank) + 1;
+              }
+            }
+            unrankedGroup[i].finalRank = currentRank;
           }
-          unrankedGroup[i].finalRank = currentRank;
-          stateChanged = true;
+        });
+        saveData();
+        renderApp(true); // สร้างใหม่เฉพาะเมื่อโครงสร้าง Rank เปลี่ยน
+        return;
+      }
+
+      // วนอัปเดตเฉพาะตัวเลขหน้าจอแบบเรียลไทม์
+      timersData.forEach(timer => {
+        let cardEl = document.querySelector(`.timer-card[data-id='${timer.id}']`);
+        if (!cardEl) return;
+
+        let isActive = timer.endTime !== null && Date.now() < timer.endTime;
+        let totalSeconds = isActive ? Math.max(0, Math.floor((timer.endTime - Date.now()) / 1000)) : 0;
+
+        let m = Math.floor(totalSeconds / 60);
+        let s = totalSeconds % 60;
+        let displayTime = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+
+        let targetTimeString = "00:00:00";
+        if (isActive) {
+          let endDate = new Date(timer.endTime);
+          let endHours = String(endDate.getHours()).padStart(2, "0");
+          let endMinutes = String(endDate.getMinutes()).padStart(2, "0");
+          let endSeconds = String(endDate.getSeconds()).padStart(2, "0");
+          targetTimeString = `${endHours}:${endMinutes}:${endSeconds}`;
+        }
+
+        let displayEl = cardEl.querySelector('.timer-display');
+        let targetEl = cardEl.querySelector('.target-time');
+        if (displayEl) displayEl.innerText = isActive ? displayTime : '00:00';
+        if (targetEl) targetEl.innerText = isActive ? targetTimeString : '00:00:00';
+
+        cardEl.className = "timer-card";
+        if (isActive) {
+          cardEl.className += totalSeconds <= 60 ? " warning" : " active";
         }
       });
+    }
+
+    function renderApp(forceRebuild = false) {
+      if ((isEditing || isDragging) && !forceRebuild) return;
+
+      let zoneSelect = document.getElementById("zoneSelect");
+      let currentSelectedZone = zoneSelect.value;
+      zoneSelect.innerHTML = "";
+      zonesData.forEach(z => {
+        let opt = document.createElement("option");
+        opt.value = z;
+        opt.innerText = z;
+        zoneSelect.appendChild(opt);
+      });
+      if (zonesData.includes(currentSelectedZone)) {
+        zoneSelect.value = currentSelectedZone;
+      }
 
       let zonesContainer = document.getElementById("zonesContainer");
       zonesContainer.innerHTML = "";
@@ -1187,10 +1227,11 @@
     }
 
     loadTheme();
-    initFirebaseSync();
+    loadData();
+    renderApp(true);
 
     setInterval(() => {
-      renderApp();
+      tickClock();
     }, 1000);
   </script>
 
